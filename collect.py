@@ -88,9 +88,13 @@ INTEGRITY_PROPERTIES = frozenset({
     "size",
     "mtime",
     "type",
+    "checksum",
     "unreadable",
     "other",
 })
+# Backup (config) files that pacman reports separately get a `backup-` prefix, so config
+# drift stays distinct from changes to package files (D-041).
+INTEGRITY_PROPERTIES = INTEGRITY_PROPERTIES | frozenset(f"backup-{p}" for p in INTEGRITY_PROPERTIES)
 
 FINDING_SCHEMA: dict[str, tuple[str, str, frozenset[str]]] = {
     "integrity": ("file-property", "mismatch", frozenset()),
@@ -130,7 +134,7 @@ INTEGRITY_NO_MTREE_RE = re.compile(
     r"^(?:warning:\s+)?[A-Za-z0-9@._+:-]+:\s+no mtree file$"
 )
 INTEGRITY_WARNING_RE = re.compile(
-    r"^(?:warning:\s+)?([A-Za-z0-9@._+:-]+):\s+(/\S*)\s+\(([^()]+)\)$"
+    r"^(backup file:\s+|warning:\s+)?([A-Za-z0-9@._+:-]+):\s+(/\S*)\s+\(([^()]+)\)$"
 )
 UPDATES_RE = re.compile(r"^([A-Za-z0-9@._+:-]+)\s+(\S+)\s+->\s+(\S+)(?:\s+\[ignored\])?$")
 PKG_VERSION_RE = re.compile(r"^([A-Za-z0-9@._+:-]+)\s+(\S+)$")
@@ -294,8 +298,10 @@ def run_tier0_command(check_id: str, argv: tuple[str, ...], timeout_s: int) -> C
 
 def _classify_integrity_detail(detail: str) -> str:
     d = detail.strip().lower()
-    if "permission denied" in d:
+    if "permission denied" in d or "failed to calculate" in d:
         return "unreadable"
+    if "checksum mismatch" in d:
+        return "checksum"
     if "no such file" in d or d == "missing" or "missing" in d:
         return "missing"
     if "permission" in d or "mode" in d:
@@ -335,13 +341,16 @@ def _parse_integrity(res: CommandResult, hostname: str) -> tuple[str, str, list[
             else:
                 saw_parse_error = True
             continue
-        pkg, path, raw_details = m.group(1), m.group(2), m.group(3)
+        prefix, pkg, path, raw_details = m.group(1) or "", m.group(2), m.group(3), m.group(4)
+        backup = prefix.startswith("backup file:")
         parts = [p.strip() for p in re.split(r"[;,]", raw_details) if p.strip()]
         if not parts:
             saw_parse_error = True
             continue
         for part in parts:
             prop = _classify_integrity_detail(part)
+            if backup:
+                prop = f"backup-{prop}"
             subject = f"{scrub_text(pkg, hostname, scrub_host=False)} {scrub_text(path, hostname)} {prop}"
             findings.append({
                 "check": "integrity",

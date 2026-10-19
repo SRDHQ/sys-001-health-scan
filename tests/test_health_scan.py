@@ -673,6 +673,28 @@ class FirstScanFixTests(unittest.TestCase):
         self.assertEqual(sorted(f["subject"] for f in snap["findings"] if f["check"] == "integrity"),
                          ["filesystem /etc/hosts mtime", "sudo /etc/simulated-root-only unreadable"])
 
+    def test_backup_file_lines_and_checksum_details(self):
+        """D-041: line shapes from the baseline scan's `pacman -Qkk` output (simulated paths)."""
+        cmds = {"integrity": {
+            "stdout": "backup file: filesystem: /etc/simulated.conf (Modification time mismatch)\n"
+                      "backup file: filesystem: /etc/simulated.conf (Size mismatch)\n"
+                      "backup file: pacman: /etc/simulated-pacman.conf (SHA256 checksum mismatch)\n"
+                      "filesystem: 120 total files, 0 altered files\n",
+            "stderr": "warning: coreutils: /usr/bin/simulated (SHA256 checksum mismatch)\n"
+                      "warning: sudo: /etc/simulated-0600 (failed to calculate SHA256 checksum)\n",
+            "exit_code": 1}}
+        snap = collect.collect_snapshot(runner=make_runner_from_commands(cmds), hostname="simhost",
+                                        now_utc=self.NOW, simulation=True)
+        chk = next(c for c in snap["checks"] if c["check"] == "integrity")
+        self.assertEqual((chk["status"], chk["reason"]), ("ok", "none"))
+        self.assertEqual(sorted(f["subject"] for f in snap["findings"] if f["check"] == "integrity"), [
+            "coreutils /usr/bin/simulated checksum",
+            "filesystem /etc/simulated.conf backup-mtime",
+            "filesystem /etc/simulated.conf backup-size",
+            "pacman /etc/simulated-pacman.conf backup-checksum",
+            "sudo /etc/simulated-0600 unreadable",
+        ])
+
 
 if __name__ == "__main__":
     unittest.main()
