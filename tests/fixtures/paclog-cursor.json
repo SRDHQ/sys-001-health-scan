@@ -1,0 +1,11 @@
+{
+  "simulation": true,
+  "fixture_group": "paclog-cursor",
+  "note": "SIMULATED fixture only — tests line-count + prefix_sha256 cursor selection, append, no-append, rotation, and truncation.",
+  "reference_now_utc": "2026-10-19T12:00:00Z",
+  "hostname": "simulated-laptop",
+  "baseline_stdout": "[2026-10-19T01:00:00-0600] [PACMAN] Running 'pacman -Syu'\n[2026-10-19T01:01:00-0600] [ALPM] warning: baseline warning within 24h\n",
+  "appended_stdout": "[2026-10-19T01:00:00-0600] [PACMAN] Running 'pacman -Syu'\n[2026-10-19T01:01:00-0600] [ALPM] warning: baseline warning within 24h\n[2026-10-19T05:00:00-0600] [ALPM] transaction started\n[2026-10-19T05:01:00-0600] [ALPM] warning: appended warning after cursor\n",
+  "rotated_stdout": "[2026-10-19T04:00:00-0600] [PACMAN] Log rotated header line\n[2026-10-19T04:30:00-0600] [ALPM] error: error in rotated log within 24h\n[2026-10-19T04:31:00-0600] [ALPM] transaction completed\n",
+  "truncated_stdout": "[2026-10-19T05:30:00-0600] [ALPM] note: note in truncated 1-line log within 24h\n"
+}

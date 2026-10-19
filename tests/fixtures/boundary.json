@@ -1,0 +1,30 @@
+{
+  "simulation": true,
+  "fixture_group": "boundary",
+  "note": "SIMULATED fixture only — tests exact 7-row Tier 0 command table, no shell execution, and repo output boundary refusal.",
+  "expected_command_table": [
+    {"check": "integrity", "argv": ["pacman", "-Qkk"], "timeout": 300},
+    {"check": "paclog", "argv": ["paclog", "--logfile", "/var/log/pacman.log"], "timeout": 60},
+    {"check": "updates", "argv": ["pacman", "-Qu"], "timeout": 60},
+    {"check": "foreign", "argv": ["pacman", "-Qm"], "timeout": 60},
+    {"check": "orphans", "argv": ["pacman", "-Qdt"], "timeout": 60},
+    {"check": "pacdiff", "argv": ["pacdiff", "-o"], "timeout": 60},
+    {"check": "failed-units", "argv": ["systemctl", "--system", "--failed", "--no-legend", "--no-pager", "--plain"], "timeout": 60}
+  ],
+  "forbidden_binaries": [
+    "arch-audit",
+    "checkupdates",
+    "smartctl",
+    "fwupdmgr",
+    "fwupdtool",
+    "sudo",
+    "sh",
+    "bash"
+  ],
+  "repo_relative_out_paths_to_refuse": [
+    ".",
+    "projects/health-scan/out",
+    "03-Projects/System health scan/out",
+    ".agent-runs/health-scan"
+  ]
+}

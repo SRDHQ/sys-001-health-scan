@@ -1,0 +1,44 @@
+{
+  "simulation": true,
+  "fixture_group": "clean",
+  "note": "SIMULATED fixture only — no real system output.",
+  "reference_now_utc": "2026-10-19T12:00:00Z",
+  "hostname": "simulated-laptop",
+  "commands": {
+    "integrity": {
+      "stdout": "bash: 211 total files, 0 altered files\npacman: 412 total files, 0 altered files\nsystemd: 1548 total files, 0 altered files\n",
+      "stderr": "",
+      "exit_code": 0
+    },
+    "paclog": {
+      "stdout": "[2026-10-19T08:00:00-0600] [PACMAN] Running 'pacman -Syu'\n[2026-10-19T08:01:10-0600] [ALPM] transaction started\n[2026-10-19T08:01:12-0600] [ALPM] upgraded bash (5.3.19-1 -> 5.3.20-1)\n[2026-10-19T08:01:15-0600] [ALPM] transaction completed\n",
+      "stderr": "",
+      "exit_code": 0
+    },
+    "updates": {
+      "stdout": "",
+      "stderr": "",
+      "exit_code": 0
+    },
+    "foreign": {
+      "stdout": "",
+      "stderr": "",
+      "exit_code": 0
+    },
+    "orphans": {
+      "stdout": "",
+      "stderr": "",
+      "exit_code": 0
+    },
+    "pacdiff": {
+      "stdout": "",
+      "stderr": "",
+      "exit_code": 0
+    },
+    "failed-units": {
+      "stdout": "",
+      "stderr": "",
+      "exit_code": 0
+    }
+  }
+}

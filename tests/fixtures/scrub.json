@@ -1,0 +1,54 @@
+{
+  "simulation": true,
+  "fixture_group": "scrub",
+  "note": "SIMULATED fixture only — contains sentinel hostname, MAC addresses, UUIDs, and serial numbers to test AC4 scrubbing and field allowlisting.",
+  "reference_now_utc": "2026-10-19T12:00:00Z",
+  "hostname": "sentinel-host-mbp121.localdomain",
+  "sentinels": [
+    "sentinel-host-mbp121.localdomain",
+    "sentinel-host-mbp121",
+    "aa:bb:cc:dd:ee:ff",
+    "AA:BB:CC:DD:EE:FF",
+    "11-22-33-44-55-66",
+    "550e8400-e29b-41d4-a716-446655440000",
+    "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "SN-DISK-998877665544"
+  ],
+  "commands": {
+    "integrity": {
+      "stdout": "warning: netcfg-sentinel-host-mbp121: /etc/net/ifcfg-aa:bb:cc:dd:ee:ff-550e8400-e29b-41d4-a716-446655440000.conf (Modification time mismatch)\n",
+      "stderr": "",
+      "exit_code": 0
+    },
+    "paclog": {
+      "stdout": "[2026-10-19T09:00:00-0600] [ALPM] warning: host sentinel-host-mbp121.localdomain interface aa:bb:cc:dd:ee:ff (11-22-33-44-55-66) volume 550e8400-e29b-41d4-a716-446655440000 had stale lock\n",
+      "stderr": "",
+      "exit_code": 0
+    },
+    "updates": {
+      "stdout": "pkg-sentinel-host-mbp121-aa:bb:cc:dd:ee:ff 1.0+550e8400-e29b-41d4-a716-446655440000 -> 2.0+f47ac10b-58cc-4372-a567-0e02b2c3d479\n",
+      "stderr": "",
+      "exit_code": 0
+    },
+    "foreign": {
+      "stdout": "foreign-sentinel-host-mbp121-11-22-33-44-55-66 0.1+550e8400-e29b-41d4-a716-446655440000\n",
+      "stderr": "",
+      "exit_code": 0
+    },
+    "orphans": {
+      "stdout": "orphan-sentinel-host-mbp121-aa:bb:cc:dd:ee:ff 0.2+f47ac10b-58cc-4372-a567-0e02b2c3d479\n",
+      "stderr": "",
+      "exit_code": 0
+    },
+    "pacdiff": {
+      "stdout": "/etc/hosts-sentinel-host-mbp121-aa:bb:cc:dd:ee:ff-550e8400-e29b-41d4-a716-446655440000.pacnew\n",
+      "stderr": "",
+      "exit_code": 0
+    },
+    "failed-units": {
+      "stdout": "netctl@sentinel-host-mbp121-aa:bb:cc:dd:ee:ff-550e8400-e29b-41d4-a716-446655440000.service loaded-sentinel-host-mbp121 failed-aa:bb:cc:dd:ee:ff sub-11-22-33-44-55-66 Disk serial SN-DISK-998877665544 on sentinel-host-mbp121\n",
+      "stderr": "",
+      "exit_code": 0
+    }
+  }
+}

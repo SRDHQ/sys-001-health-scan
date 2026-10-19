@@ -1,0 +1,13 @@
+{
+  "simulation": true,
+  "fixture_group": "paclog-offsets",
+  "note": "SIMULATED fixture only — tests mixed +0000 and -0600 UTC offsets against the 24-hour baseline window.",
+  "reference_now_utc": "2026-10-19T12:00:00Z",
+  "hostname": "simulated-laptop",
+  "paclog_stdout": "[2026-08-01T14:00:00+0000] [ALPM] warning: summer UTC entry outside 24h window\n[2026-10-18T11:59:59+0000] [ALPM] warning: UTC entry 1 second before 24h cutoff\n[2026-10-18T05:59:59-0600] [ALPM] error: -0600 entry (=11:59:59Z) 1 second before 24h cutoff\n[2026-10-18T06:00:00-0600] [ALPM] warning: -0600 entry (=12:00:00Z) exactly at 24h cutoff\n[2026-10-18T12:30:00+0000] [ALPM] error: +0000 entry (=12:30:00Z) inside 24h window\n[2026-10-19T05:45:00-0600] [ALPM-SCRIPTLET] note: -0600 entry (=11:45:00Z) 15 minutes before now\n[2026-10-19T05:50:00-0600] [ALPM] upgraded pacman (7.0.0 -> 7.1.0)\n",
+  "expected_subjects": [
+    "2026-10-18T06:00:00-0600 warning: -0600 entry (=12:00:00Z) exactly at 24h cutoff",
+    "2026-10-18T12:30:00+0000 error: +0000 entry (=12:30:00Z) inside 24h window",
+    "2026-10-19T05:45:00-0600 note: -0600 entry (=11:45:00Z) 15 minutes before now"
+  ]
+}

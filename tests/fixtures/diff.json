@@ -1,0 +1,108 @@
+{
+  "simulation": true,
+  "fixture_group": "diff",
+  "note": "SIMULATED fixture only — tests new, resolved, changed, tool-failure, A vs A, shuffled order, and paclog never resolved.",
+  "snapshot_a": {
+    "schema_version": 1,
+    "simulation": true,
+    "started_at": "2026-10-19T12:00:00Z",
+    "finished_at": "2026-10-19T12:00:05Z",
+    "checks": [
+      {"check": "integrity", "status": "ok", "reason": "none", "exit_code": 0},
+      {"check": "paclog", "status": "ok", "reason": "none", "exit_code": 0},
+      {"check": "updates", "status": "ok", "reason": "none", "exit_code": 0},
+      {"check": "foreign", "status": "ok", "reason": "none", "exit_code": 0},
+      {"check": "orphans", "status": "ok", "reason": "none", "exit_code": 0},
+      {"check": "pacdiff", "status": "ok", "reason": "none", "exit_code": 0},
+      {"check": "failed-units", "status": "ok", "reason": "none", "exit_code": 0}
+    ],
+    "findings": [
+      {
+        "check": "failed-units",
+        "kind": "failed-unit",
+        "subject": "logrotate.service",
+        "state": "failed",
+        "attributes": {"active": "failed", "load": "loaded", "sub": "failed"}
+      },
+      {
+        "check": "foreign",
+        "kind": "foreign-package",
+        "subject": "yay-bin",
+        "state": "present",
+        "attributes": {"installed_version": "12.4.1-1"}
+      },
+      {
+        "check": "orphans",
+        "kind": "orphan-package",
+        "subject": "go-md2man",
+        "state": "present",
+        "attributes": {"installed_version": "2.0.4-1"}
+      },
+      {
+        "check": "paclog",
+        "kind": "log-warning",
+        "subject": "2026-10-19T07:30:00-0600 warning: /etc/pacman.conf installed as /etc/pacman.conf.pacnew",
+        "state": "observed",
+        "attributes": {}
+      }
+    ],
+    "paclog_cursor": {
+      "lines": 10,
+      "prefix_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    }
+  },
+  "snapshot_b": {
+    "schema_version": 1,
+    "simulation": true,
+    "started_at": "2026-10-22T12:00:00Z",
+    "finished_at": "2026-10-22T12:00:06Z",
+    "checks": [
+      {"check": "integrity", "status": "ok", "reason": "none", "exit_code": 0},
+      {"check": "paclog", "status": "ok", "reason": "none", "exit_code": 0},
+      {"check": "updates", "status": "ok", "reason": "none", "exit_code": 0},
+      {"check": "foreign", "status": "ok", "reason": "none", "exit_code": 0},
+      {"check": "orphans", "status": "ok", "reason": "none", "exit_code": 0},
+      {"check": "pacdiff", "status": "ok", "reason": "none", "exit_code": 0},
+      {"check": "failed-units", "status": "failed", "reason": "exit-status", "exit_code": 1}
+    ],
+    "findings": [
+      {
+        "check": "foreign",
+        "kind": "foreign-package",
+        "subject": "yay-bin",
+        "state": "present",
+        "attributes": {"installed_version": "12.4.2-1"}
+      },
+      {
+        "check": "pacdiff",
+        "kind": "pending-config",
+        "subject": "/etc/pacman.conf.pacnew",
+        "state": "present",
+        "attributes": {}
+      }
+    ],
+    "paclog_cursor": {
+      "lines": 14,
+      "prefix_sha256": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+    }
+  },
+  "expected_diff": {
+    "schema_version": 1,
+    "simulation": true,
+    "totals": {
+      "changed": 1,
+      "new": 1,
+      "resolved": 1,
+      "tool-failure": 1
+    },
+    "by_check": {
+      "failed-units": {"changed": 0, "new": 0, "resolved": 0, "tool-failure": 1},
+      "foreign": {"changed": 1, "new": 0, "resolved": 0, "tool-failure": 0},
+      "integrity": {"changed": 0, "new": 0, "resolved": 0, "tool-failure": 0},
+      "orphans": {"changed": 0, "new": 0, "resolved": 1, "tool-failure": 0},
+      "pacdiff": {"changed": 0, "new": 1, "resolved": 0, "tool-failure": 0},
+      "paclog": {"changed": 0, "new": 0, "resolved": 0, "tool-failure": 0},
+      "updates": {"changed": 0, "new": 0, "resolved": 0, "tool-failure": 0}
+    }
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "simulation": true,
+  "fixture_group": "failures",
+  "note": "SIMULATED fixture only — tests missing-tool, timeout, exit-status, parse, permission, and truncated failure modes, and verifies none produces a false resolved.",
+  "reference_now_utc": "2026-10-19T12:00:00Z",
+  "hostname": "simulated-laptop",
+  "cases": {
+    "missing-tool": {
+      "check": "pacdiff",
+      "missing_tool": true,
+      "expected_status": "failed",
+      "expected_reason": "missing-tool"
+    },
+    "timeout": {
+      "check": "integrity",
+      "timed_out": true,
+      "expected_status": "failed",
+      "expected_reason": "timeout"
+    },
+    "exit-status": {
+      "check": "updates",
+      "stdout": "",
+      "stderr": "error: failed to read db\n",
+      "exit_code": 1,
+      "expected_status": "failed",
+      "expected_reason": "exit-status"
+    },
+    "parse": {
+      "check": "foreign",
+      "stdout": "yay-bin 12.4.2-1\nTHIS LINE HAS TOO MANY TOKENS AND IS CORRUPT\n",
+      "stderr": "",
+      "exit_code": 0,
+      "expected_status": "partial",
+      "expected_reason": "parse"
+    },
+    "permission": {
+      "check": "integrity",
+      "stdout": "warning: filesystem: /etc/hosts (Modification time mismatch)\n",
+      "stderr": "warning: sudo: /etc/sudoers.d/local (Permission denied)\n",
+      "exit_code": 1,
+      "expected_status": "partial",
+      "expected_reason": "permission"
+    },
+    "truncated": {
+      "check": "orphans",
+      "truncated": true,
+      "exit_code": 0,
+      "expected_status": "failed",
+      "expected_reason": "truncated"
+    }
+  }
+}
