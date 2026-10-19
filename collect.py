@@ -37,10 +37,12 @@ import hashlib
 import json
 import os
 import re
+import selectors
 import socket
 import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -202,25 +204,56 @@ def _is_empty_result(check_id: str, res: CommandResult) -> bool:
             and not (res.stdout or "").strip() and not (res.stderr or "").strip())
 
 
-def _read_capped(proc: subprocess.Popen[bytes], timeout_s: int, cap_bytes: int) -> CommandResult:
-    """Communicate with a child process with timeout and a hard byte cap."""
-    try:
-        out_b, err_b = proc.communicate(timeout=timeout_s)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        proc.communicate()
-        return CommandResult(exit_code=None, timed_out=True)
+def _kill_and_reap(proc: subprocess.Popen[bytes]) -> None:
+    proc.kill()
+    proc.wait()
+    for stream in (proc.stdout, proc.stderr):
+        if stream is not None:
+            stream.close()
 
-    if len(out_b) + len(err_b) > cap_bytes:
-        return CommandResult(
-            stdout=out_b[:cap_bytes].decode("utf-8", errors="replace"),
-            stderr="",
-            exit_code=proc.returncode,
-            truncated=True,
-        )
+
+def _read_capped(proc: subprocess.Popen[bytes], timeout_s: float, cap_bytes: int) -> CommandResult:
+    """Read both streams incrementally with a deadline and a hard combined byte cap.
+
+    The child is killed as soon as the combined output passes `cap_bytes`, so memory
+    stays bounded by the cap plus one read chunk (Inspector finding 1, 2026-10-19).
+    """
+    deadline = time.monotonic() + timeout_s
+    bufs: dict[Any, bytearray] = {proc.stdout: bytearray(), proc.stderr: bytearray()}
+    total = 0
+    with selectors.DefaultSelector() as sel:
+        for stream in bufs:
+            sel.register(stream, selectors.EVENT_READ)
+        while sel.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                _kill_and_reap(proc)
+                return CommandResult(exit_code=None, timed_out=True)
+            for key, _ in sel.select(timeout=remaining):
+                chunk = os.read(key.fd, 65536)
+                if not chunk:
+                    sel.unregister(key.fileobj)
+                    continue
+                total += len(chunk)
+                if total > cap_bytes:
+                    _kill_and_reap(proc)
+                    return CommandResult(
+                        stdout=bytes(bufs[proc.stdout]).decode("utf-8", errors="replace"),
+                        stderr="",
+                        exit_code=None,
+                        truncated=True,
+                    )
+                bufs[key.fileobj] += chunk
+    try:
+        proc.wait(timeout=max(0.0, deadline - time.monotonic()))
+    except subprocess.TimeoutExpired:
+        _kill_and_reap(proc)
+        return CommandResult(exit_code=None, timed_out=True)
+    for stream in (proc.stdout, proc.stderr):
+        stream.close()
     return CommandResult(
-        stdout=out_b.decode("utf-8", errors="replace"),
-        stderr=err_b.decode("utf-8", errors="replace"),
+        stdout=bytes(bufs[proc.stdout]).decode("utf-8", errors="replace"),
+        stderr=bytes(bufs[proc.stderr]).decode("utf-8", errors="replace"),
         exit_code=proc.returncode,
     )
 
@@ -756,24 +789,22 @@ def write_snapshot_file(
     filename: str | None = None,
     root: Path | None = None,
 ) -> Path:
-    """Write `snapshot` to a temporary file in `out_dir` and rename without overwriting."""
+    """Write `snapshot` to a temporary file in `out_dir` and publish it without overwriting.
+
+    Publication uses `os.link`, which fails atomically if the target exists, instead of
+    a separate exists() check plus `os.replace` (Inspector finding 2, 2026-10-19).
+    """
     validate_snapshot(snapshot)
     resolved_dir = check_out_dir(out_dir, root=root)
     resolved_dir.mkdir(parents=True, exist_ok=True)
 
     if filename is not None:
-        target = resolved_dir / filename
-        if target.exists():
-            raise FileExistsError(f"refusing to overwrite existing snapshot file: {target}")
+        candidates = iter([resolved_dir / filename])
     else:
         stamp = snapshot["started_at"].replace("-", "").replace(":", "")
         base_name = f"snapshot-{stamp}"
-        candidate = resolved_dir / f"{base_name}.json"
-        seq = 2
-        while candidate.exists():
-            candidate = resolved_dir / f"{base_name}-{seq}.json"
-            seq += 1
-        target = candidate
+        candidates = (resolved_dir / (f"{base_name}.json" if seq == 1 else f"{base_name}-{seq}.json")
+                      for seq in range(1, 1000))
 
     payload = json.dumps(snapshot, indent=2, sort_keys=False, ensure_ascii=False) + "\n"
     fd, tmp_name = tempfile.mkstemp(prefix=".tmp-snapshot-", suffix=".json", dir=str(resolved_dir))
@@ -783,13 +814,17 @@ def write_snapshot_file(
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
-        if target.exists():
-            raise FileExistsError(f"refusing to overwrite existing snapshot file: {target}")
-        os.replace(tmp_path, target)
-    except Exception:
-        if tmp_path.exists():
-            tmp_path.unlink(missing_ok=True)
-        raise
+        for target in candidates:
+            try:
+                os.link(tmp_path, target)   # atomic no-clobber publish
+                break
+            except FileExistsError:
+                if filename is not None:
+                    raise FileExistsError(f"refusing to overwrite existing snapshot file: {target}") from None
+        else:
+            raise FileExistsError(f"no free snapshot name for {base_name} in {resolved_dir}")
+    finally:
+        tmp_path.unlink(missing_ok=True)
     return target
 
 

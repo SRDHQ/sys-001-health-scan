@@ -13,6 +13,7 @@ import datetime as dt
 import io
 import json
 import random
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -556,6 +557,68 @@ class HealthScanTests(unittest.TestCase):
         non_sim["simulation"] = False
         with self.assertRaises(ValueError):
             diff.diff_snapshots(valid, non_sim)
+
+
+class ReaderAndPublishTests(unittest.TestCase):
+    """Inspector findings 1–2 (Codex, 2026-10-19). Children are local Python one-liners
+    printing simulated output; no Tier 0 command runs."""
+
+    def child(self, code: str) -> subprocess.Popen[bytes]:
+        return subprocess.Popen([sys.executable, "-I", "-c", code], stdin=subprocess.DEVNULL,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    def test_reader_returns_both_streams_and_exit_code(self):
+        res = collect._read_capped(self.child("import sys; print('out'); print('err', file=sys.stderr); sys.exit(3)"),
+                                   timeout_s=10, cap_bytes=1024)
+        self.assertEqual((res.stdout, res.stderr, res.exit_code, res.truncated), ("out\n", "err\n", 3, False))
+
+    def test_reader_stops_child_at_cap_with_bounded_memory(self):
+        # The child would write 50 MiB and then sleep; the reader must stop it near the cap.
+        proc = self.child("import sys, time\nfor _ in range(800): sys.stdout.write('x' * 65536)\n"
+                          "sys.stdout.flush(); time.sleep(30)")
+        res = collect._read_capped(proc, timeout_s=10, cap_bytes=256 * 1024)
+        self.assertTrue(res.truncated)
+        self.assertLessEqual(len(res.stdout), 256 * 1024)
+        self.assertIsNotNone(proc.returncode)   # reaped, not left running
+
+    def test_reader_cap_counts_both_streams(self):
+        proc = self.child("import sys\nsys.stdout.write('o' * 3000); sys.stdout.flush()\n"
+                          "sys.stderr.write('e' * 3000); sys.stderr.flush()")
+        self.assertTrue(collect._read_capped(proc, timeout_s=10, cap_bytes=4000).truncated)
+
+    def test_reader_times_out_and_reaps(self):
+        proc = self.child("import time; time.sleep(30)")
+        res = collect._read_capped(proc, timeout_s=0.5, cap_bytes=1024)
+        self.assertTrue(res.timed_out)
+        self.assertIsNotNone(proc.returncode)
+
+    def snapshot(self) -> dict[str, Any]:
+        return collect.collect_snapshot(runner=make_runner_from_commands({}), hostname="h",
+                                        now_utc=dt.datetime(2026, 10, 19, tzinfo=dt.timezone.utc), simulation=True)
+
+    def test_publish_never_overwrites_a_file_created_during_the_race(self):
+        snap = self.snapshot()
+        real_link = collect.os.link
+        with tempfile.TemporaryDirectory(prefix="hs-race-") as tmp:
+            first = Path(tmp) / "snapshot-20261019T000000Z.json"
+
+            def racing_link(src, dst):
+                # Another run creates the target between "name chosen" and "publish".
+                if Path(dst) == first and not first.exists():
+                    first.write_text("SENTINEL")
+                return real_link(src, dst)
+
+            collect.os.link = racing_link
+            try:
+                written = collect.write_snapshot_file(snap, tmp)
+                with self.assertRaises(FileExistsError):
+                    collect.write_snapshot_file(snap, tmp, filename=first.name)
+            finally:
+                collect.os.link = real_link
+            self.assertEqual(first.read_text(), "SENTINEL")
+            self.assertEqual(written.name, "snapshot-20261019T000000Z-2.json")
+            self.assertEqual(json.loads(written.read_text())["started_at"], snap["started_at"])
+            self.assertEqual([p.name for p in Path(tmp).iterdir() if p.name.startswith(".tmp-")], [])
 
 
 if __name__ == "__main__":
