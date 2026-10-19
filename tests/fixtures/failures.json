@@ -36,7 +36,7 @@
     "permission": {
       "check": "integrity",
       "stdout": "warning: filesystem: /etc/hosts (Modification time mismatch)\n",
-      "stderr": "warning: sudo: /etc/sudoers.d/local (Permission denied)\n",
+      "stderr": "error: could not open file /var/lib/pacman/local/sudo-1.9.17-1/mtree: Permission denied\n",
       "exit_code": 1,
       "expected_status": "partial",
       "expected_reason": "permission"

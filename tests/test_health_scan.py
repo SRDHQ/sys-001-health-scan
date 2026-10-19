@@ -13,6 +13,7 @@ import datetime as dt
 import io
 import json
 import random
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -619,6 +620,58 @@ class ReaderAndPublishTests(unittest.TestCase):
             self.assertEqual(written.name, "snapshot-20261019T000000Z-2.json")
             self.assertEqual(json.loads(written.read_text())["started_at"], snap["started_at"])
             self.assertEqual([p.name for p in Path(tmp).iterdir() if p.name.startswith(".tmp-")], [])
+
+
+class FirstScanFixTests(unittest.TestCase):
+    """D-040: fixes from the owner's first real scan (2026-10-19). Simulated data only."""
+
+    NOW = dt.datetime(2026, 10, 19, tzinfo=dt.timezone.utc)
+
+    @unittest.skipUnless(shutil.which("paclog"), "paclog not installed")
+    def test_paclog_reads_the_log_file_given_as_stdin(self):
+        # Runs the real paclog binary on a simulated two-line log, not the system log.
+        with tempfile.TemporaryDirectory(prefix="hs-paclog-") as tmp:
+            log = Path(tmp) / "pacman.log"
+            log.write_text("[2026-10-19T02:00:15-0600] [ALPM] warning: simulated one\n"
+                           "[2026-10-19T02:00:16-0600] [ALPM] transaction completed\n")
+            saved = dict(collect.STDIN_FILES)
+            collect.STDIN_FILES["paclog"] = str(log)
+            try:
+                argv, timeout_s = next((a, t) for c, a, t in collect.COMMAND_TABLE if c == "paclog")
+                res = collect.run_tier0_command("paclog", argv, timeout_s)
+            finally:
+                collect.STDIN_FILES.clear()
+                collect.STDIN_FILES.update(saved)
+        self.assertEqual(res.exit_code, 0, res.stderr)
+        self.assertEqual(res.stdout.splitlines(), ["[2026-10-19T02:00:15-0600] [ALPM] warning: simulated one",
+                                                   "[2026-10-19T02:00:16-0600] [ALPM] transaction completed"])
+
+    def test_unopenable_stdin_file_is_a_failure_not_a_crash(self):
+        saved = dict(collect.STDIN_FILES)
+        collect.STDIN_FILES["paclog"] = "/nonexistent/simulated/pacman.log"
+        try:
+            argv, timeout_s = next((a, t) for c, a, t in collect.COMMAND_TABLE if c == "paclog")
+            res = collect.run_tier0_command("paclog", argv, timeout_s)
+        finally:
+            collect.STDIN_FILES.clear()
+            collect.STDIN_FILES.update(saved)
+        self.assertIsNone(res.exit_code)
+        self.assertIn("cannot open", res.stderr)
+        status, reason, findings, _ = collect._parse_paclog(res, "h", None, self.NOW)
+        self.assertEqual((status, reason, findings), ("failed", "exit-status", []))
+
+    def test_per_file_permission_denied_is_an_unreadable_finding(self):
+        # Shape observed in the owner's first scan: `warning: <pkg>: <path> (Permission denied)`.
+        cmds = {"integrity": {"stdout": "sudo: 120 total files, 0 altered files\n",
+                              "stderr": "warning: sudo: /etc/simulated-root-only (Permission denied)\n"
+                                        "warning: filesystem: /etc/hosts (Modification time mismatch)\n",
+                              "exit_code": 1}}
+        snap = collect.collect_snapshot(runner=make_runner_from_commands(cmds), hostname="simhost",
+                                        now_utc=self.NOW, simulation=True)
+        chk = next(c for c in snap["checks"] if c["check"] == "integrity")
+        self.assertEqual((chk["status"], chk["reason"]), ("ok", "none"))
+        self.assertEqual(sorted(f["subject"] for f in snap["findings"] if f["check"] == "integrity"),
+                         ["filesystem /etc/hosts mtime", "sudo /etc/simulated-root-only unreadable"])
 
 
 if __name__ == "__main__":

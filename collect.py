@@ -63,6 +63,12 @@ COMMAND_TABLE: tuple[tuple[str, tuple[str, ...], int], ...] = (
 
 CHECK_IDS: tuple[str, ...] = tuple(cid for cid, _, _ in COMMAND_TABLE)
 
+# paclog parses stdin instead of --logfile whenever stdin is not a terminal (paclog(1):
+# "If input is provided on stdin it will be parsed instead of --logfile"). With stdin
+# closed it exited 1 ("could not parse '<stdin>'") in the owner's first scan, so the log
+# file itself is given as stdin (D-040).
+STDIN_FILES: dict[str, str] = {"paclog": "/var/log/pacman.log"}
+
 CHECK_STATUSES = frozenset({"ok", "partial", "failed"})
 CHECK_REASONS = frozenset({
     "none",
@@ -82,6 +88,7 @@ INTEGRITY_PROPERTIES = frozenset({
     "size",
     "mtime",
     "type",
+    "unreadable",
     "other",
 })
 
@@ -263,24 +270,32 @@ def run_tier0_command(check_id: str, argv: tuple[str, ...], timeout_s: int) -> C
     expected = dict((cid, (cmd, tmo)) for cid, cmd, tmo in COMMAND_TABLE)
     if check_id not in expected or expected[check_id] != (argv, timeout_s):
         raise ValueError(f"refusing command outside fixed Tier 0 table: {check_id} {argv}")
+    stdin_path = STDIN_FILES.get(check_id)
+    try:
+        stdin = open(stdin_path, "rb") if stdin_path else subprocess.DEVNULL
+    except OSError as exc:
+        return CommandResult(stderr=f"cannot open {stdin_path}: {exc.strerror}\n", exit_code=None)
     try:
         proc = subprocess.Popen(
             list(argv),
             shell=False,
-            stdin=subprocess.DEVNULL,
+            stdin=stdin,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env=dict(MINIMAL_ENV),
         )
     except FileNotFoundError:
         return CommandResult(exit_code=None, missing_tool=True)
+    finally:
+        if stdin_path:
+            stdin.close()
     return _read_capped(proc, timeout_s=timeout_s, cap_bytes=MAX_OUTPUT_BYTES)
 
 
 def _classify_integrity_detail(detail: str) -> str:
     d = detail.strip().lower()
     if "permission denied" in d:
-        return "permission-denied"
+        return "unreadable"
     if "no such file" in d or d == "missing" or "missing" in d:
         return "missing"
     if "permission" in d or "mode" in d:
@@ -308,15 +323,17 @@ def _parse_integrity(res: CommandResult, hostname: str) -> tuple[str, str, list[
         if line.strip()
     ]
     for line in combined_lines:
-        lower = line.lower()
-        if "permission denied" in lower:
-            saw_permission = True
-            continue
         if INTEGRITY_SUMMARY_RE.match(line) or INTEGRITY_NO_MTREE_RE.match(line):
             continue
         m = INTEGRITY_WARNING_RE.match(line)
         if not m:
-            saw_parse_error = True
+            # A per-file "(Permission denied)" line matches above and becomes an
+            # `unreadable` finding (D-040). Any other permission error means pacman
+            # could not complete the check.
+            if "permission denied" in line.lower():
+                saw_permission = True
+            else:
+                saw_parse_error = True
             continue
         pkg, path, raw_details = m.group(1), m.group(2), m.group(3)
         parts = [p.strip() for p in re.split(r"[;,]", raw_details) if p.strip()]
@@ -325,9 +342,6 @@ def _parse_integrity(res: CommandResult, hostname: str) -> tuple[str, str, list[
             continue
         for part in parts:
             prop = _classify_integrity_detail(part)
-            if prop == "permission-denied":
-                saw_permission = True
-                continue
             subject = f"{scrub_text(pkg, hostname, scrub_host=False)} {scrub_text(path, hostname)} {prop}"
             findings.append({
                 "check": "integrity",
