@@ -20,6 +20,14 @@ Exit-code evidence (Task 3 specification, revision 2):
   treated as `failed` (`reason: "exit-status"`), except on `integrity`
   (`pacman -Qkk`) when stderr/stdout reports `Permission denied`, which is
   recorded as `partial` (`reason: "permission"`) per the command table.
+- Exceptions added by Claude Code (co-author, D-039), observed on this machine
+  on 2026-10-19 with output discarded: `pacman -Qu` exits 1 and prints nothing
+  when no update is pending, a normal healthy state. `pacman -Qm` and
+  `pacman -Qdt` share pacman's query path and are assumed (unverified) to do
+  the same. For these three checks, exit 1 with empty stdout and stderr is a
+  valid empty result. `pacman -Qkk` is assumed (unverified until the first
+  owner run) to exit 1 when it reports mismatches, so exit 1 counts as
+  complete only when mismatch lines were parsed.
 """
 from __future__ import annotations
 
@@ -126,6 +134,9 @@ PACLOG_LINE_RE = re.compile(
 )
 PACLOG_WARNING_PREFIXES = ("warning:", "error:", "note:")
 
+# Checks where exit 1 with no output at all means "no results" (see module docstring).
+EMPTY_RESULT_EXIT_ONE = frozenset({"updates", "foreign", "orphans"})
+
 
 @dataclass(frozen=True)
 class CommandResult:
@@ -159,13 +170,20 @@ def check_out_dir(out_dir: str | Path, root: Path | None = None) -> Path:
     return resolved
 
 
-def scrub_text(value: str, hostname: str | None = None) -> str:
-    """Replace UUIDs with `<uuid>`, MAC addresses with `<mac>`, and hostname with `<host>` (AC4)."""
+def scrub_text(value: str, hostname: str | None = None, *, scrub_host: bool = True) -> str:
+    """Replace UUIDs with `<uuid>`, MAC addresses with `<mac>`, and hostname with `<host>` (AC4).
+
+    `scrub_host=False` is for package names and versions, which come from the
+    package database and cannot contain the hostname but can collide with it
+    (hostname `archlinux` vs package `archlinux-keyring`; D-039).
+    """
     if not isinstance(value, str):
         raise TypeError("scrub_text requires a str")
     out = UUID_RE.sub("<uuid>", value)
     out = MAC_COLON_RE.sub("<mac>", out)
     out = MAC_HYPHEN_RE.sub("<mac>", out)
+    if not scrub_host:
+        return out
     host = hostname if hostname is not None else socket.gethostname()
     candidates = []
     if host:
@@ -177,6 +195,11 @@ def scrub_text(value: str, hostname: str | None = None) -> str:
         if token:
             out = re.sub(re.escape(token), "<host>", out, flags=re.IGNORECASE)
     return out
+
+
+def _is_empty_result(check_id: str, res: CommandResult) -> bool:
+    return (check_id in EMPTY_RESULT_EXIT_ONE and res.exit_code == 1
+            and not (res.stdout or "").strip() and not (res.stderr or "").strip())
 
 
 def _read_capped(proc: subprocess.Popen[bytes], timeout_s: int, cap_bytes: int) -> CommandResult:
@@ -272,7 +295,7 @@ def _parse_integrity(res: CommandResult, hostname: str) -> tuple[str, str, list[
             if prop == "permission-denied":
                 saw_permission = True
                 continue
-            subject = f"{scrub_text(pkg, hostname)} {scrub_text(path, hostname)} {prop}"
+            subject = f"{scrub_text(pkg, hostname, scrub_host=False)} {scrub_text(path, hostname)} {prop}"
             findings.append({
                 "check": "integrity",
                 "kind": "file-property",
@@ -283,7 +306,7 @@ def _parse_integrity(res: CommandResult, hostname: str) -> tuple[str, str, list[
 
     if saw_permission:
         return "partial", "permission", findings
-    if res.exit_code != 0:
+    if res.exit_code not in (0, 1) or (res.exit_code == 1 and not findings):
         return "failed", "exit-status", []
     if saw_parse_error:
         return "partial", "parse", findings
@@ -291,6 +314,8 @@ def _parse_integrity(res: CommandResult, hostname: str) -> tuple[str, str, list[
 
 
 def _parse_updates(res: CommandResult, hostname: str) -> tuple[str, str, list[dict[str, Any]]]:
+    if _is_empty_result("updates", res):
+        return "ok", "none", []
     if res.exit_code != 0:
         return "failed", "exit-status", []
     if (res.stderr or "").strip():
@@ -309,11 +334,11 @@ def _parse_updates(res: CommandResult, hostname: str) -> tuple[str, str, list[di
         findings.append({
             "check": "updates",
             "kind": "local-update",
-            "subject": scrub_text(pkg, hostname),
+            "subject": scrub_text(pkg, hostname, scrub_host=False),
             "state": "available",
             "attributes": {
-                "installed_version": scrub_text(installed_v, hostname),
-                "available_version": scrub_text(available_v, hostname),
+                "installed_version": scrub_text(installed_v, hostname, scrub_host=False),
+                "available_version": scrub_text(available_v, hostname, scrub_host=False),
             },
         })
     if saw_parse_error:
@@ -327,6 +352,8 @@ def _parse_pkg_list(
     res: CommandResult,
     hostname: str,
 ) -> tuple[str, str, list[dict[str, Any]]]:
+    if _is_empty_result(check_id, res):
+        return "ok", "none", []
     if res.exit_code != 0:
         return "failed", "exit-status", []
     if (res.stderr or "").strip():
@@ -345,10 +372,10 @@ def _parse_pkg_list(
         findings.append({
             "check": check_id,
             "kind": kind,
-            "subject": scrub_text(pkg, hostname),
+            "subject": scrub_text(pkg, hostname, scrub_host=False),
             "state": "present",
             "attributes": {
-                "installed_version": scrub_text(installed_v, hostname),
+                "installed_version": scrub_text(installed_v, hostname, scrub_host=False),
             },
         })
     if saw_parse_error:

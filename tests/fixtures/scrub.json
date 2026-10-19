@@ -16,7 +16,7 @@
   ],
   "commands": {
     "integrity": {
-      "stdout": "warning: netcfg-sentinel-host-mbp121: /etc/net/ifcfg-aa:bb:cc:dd:ee:ff-550e8400-e29b-41d4-a716-446655440000.conf (Modification time mismatch)\n",
+      "stdout": "warning: netcfg: /etc/net/ifcfg-sentinel-host-mbp121-aa:bb:cc:dd:ee:ff-550e8400-e29b-41d4-a716-446655440000.conf (Modification time mismatch)\n",
       "stderr": "",
       "exit_code": 0
     },
@@ -26,17 +26,17 @@
       "exit_code": 0
     },
     "updates": {
-      "stdout": "pkg-sentinel-host-mbp121-aa:bb:cc:dd:ee:ff 1.0+550e8400-e29b-41d4-a716-446655440000 -> 2.0+f47ac10b-58cc-4372-a567-0e02b2c3d479\n",
+      "stdout": "pkg-aa:bb:cc:dd:ee:ff 1.0+550e8400-e29b-41d4-a716-446655440000 -> 2.0+f47ac10b-58cc-4372-a567-0e02b2c3d479\n",
       "stderr": "",
       "exit_code": 0
     },
     "foreign": {
-      "stdout": "foreign-sentinel-host-mbp121-11-22-33-44-55-66 0.1+550e8400-e29b-41d4-a716-446655440000\n",
+      "stdout": "foreign-11-22-33-44-55-66 0.1+550e8400-e29b-41d4-a716-446655440000\n",
       "stderr": "",
       "exit_code": 0
     },
     "orphans": {
-      "stdout": "orphan-sentinel-host-mbp121-aa:bb:cc:dd:ee:ff 0.2+f47ac10b-58cc-4372-a567-0e02b2c3d479\n",
+      "stdout": "orphan-aa:bb:cc:dd:ee:ff 0.2+f47ac10b-58cc-4372-a567-0e02b2c3d479\n",
       "stderr": "",
       "exit_code": 0
     },

@@ -248,9 +248,59 @@ class HealthScanTests(unittest.TestCase):
         self.assertEqual(len(snap["findings"]), 7)
         for f in snap["findings"]:
             combined = f["subject"] + " " + " ".join(f["attributes"].values())
-            self.assertIn("<host>", combined)
+            if f["check"] not in ("updates", "foreign", "orphans"):   # package fields skip host scrub (D-039)
+                self.assertIn("<host>", combined)
             self.assertIn("<mac>", combined)
             self.assertIn("<uuid>", combined)
+
+    def test_hostname_scrub_spares_package_names(self):
+        """D-039: hostname `archlinux` must not rewrite package `archlinux-keyring`. Simulated output."""
+        cmds = {
+            "updates": {"stdout": "archlinux-keyring 20260901-1 -> 20261001-1\n"},
+            "foreign": {"stdout": "archlinux-tools 1.0-1\n"},
+            "integrity": {"stdout": "warning: archlinux-keyring: /etc/archlinux/x (Size mismatch)\n"},
+            "failed-units": {"stdout": "netctl@archlinux-wlan.service loaded failed failed\n"},
+        }
+        snap = collect.collect_snapshot(runner=make_runner_from_commands(cmds), hostname="archlinux",
+                                        now_utc=dt.datetime(2026, 10, 19, tzinfo=dt.timezone.utc), simulation=True)
+        subjects = {f["check"]: f["subject"] for f in snap["findings"]}
+        self.assertEqual(subjects["updates"], "archlinux-keyring")
+        self.assertEqual(subjects["foreign"], "archlinux-tools")
+        self.assertEqual(subjects["integrity"], "archlinux-keyring /etc/<host>/x size")   # package kept, path scrubbed
+        self.assertEqual(subjects["failed-units"], "netctl@<host>-wlan.service")
+
+    def test_exit_one_with_no_output_is_an_empty_result(self):
+        """D-039: `pacman -Qu` exits 1 with no output when nothing is pending (observed). Simulated output."""
+        for check in ("updates", "foreign", "orphans"):
+            snap = collect.collect_snapshot(
+                runner=make_runner_from_commands({check: {"stdout": "", "stderr": "", "exit_code": 1}}),
+                hostname="h", now_utc=dt.datetime(2026, 10, 19, tzinfo=dt.timezone.utc), simulation=True)
+            chk = next(c for c in snap["checks"] if c["check"] == check)
+            self.assertEqual((chk["status"], chk["reason"], chk["exit_code"]), ("ok", "none", 1), check)
+            # Exit 1 with an error message is still a failure.
+            snap = collect.collect_snapshot(
+                runner=make_runner_from_commands({check: {"stderr": "error: failed to read db\n", "exit_code": 1}}),
+                hostname="h", now_utc=dt.datetime(2026, 10, 19, tzinfo=dt.timezone.utc), simulation=True)
+            chk = next(c for c in snap["checks"] if c["check"] == check)
+            self.assertEqual((chk["status"], chk["reason"]), ("failed", "exit-status"), check)
+        # Other checks keep treating exit 1 as a failure.
+        snap = collect.collect_snapshot(runner=make_runner_from_commands({"pacdiff": {"exit_code": 1}}),
+                                        hostname="h", now_utc=dt.datetime(2026, 10, 19, tzinfo=dt.timezone.utc),
+                                        simulation=True)
+        self.assertEqual(next(c for c in snap["checks"] if c["check"] == "pacdiff")["status"], "failed")
+
+    def test_integrity_exit_one_counts_only_with_parsed_mismatches(self):
+        """D-039: `pacman -Qkk` is assumed to exit 1 when it reports mismatches (unverified). Simulated output."""
+        now = dt.datetime(2026, 10, 19, tzinfo=dt.timezone.utc)
+        out = "warning: filesystem: /etc/hosts (Modification time mismatch)\nfilesystem: 120 total files, 1 altered file\n"
+        cases = [({"stdout": out, "exit_code": 1}, "ok", 1),
+                 ({"stdout": "", "exit_code": 1}, "failed", 0),
+                 ({"stdout": out, "exit_code": 2}, "failed", 0)]
+        for spec, status, n in cases:
+            snap = collect.collect_snapshot(runner=make_runner_from_commands({"integrity": spec}),
+                                            hostname="h", now_utc=now, simulation=True)
+            self.assertEqual(next(c for c in snap["checks"] if c["check"] == "integrity")["status"], status, spec)
+            self.assertEqual(len([f for f in snap["findings"] if f["check"] == "integrity"]), n, spec)
 
     def test_paclog_offsets_uses_true_utc_for_24h_baseline(self):
         fx = load_fixture("paclog-offsets")
