@@ -16,14 +16,20 @@ python -I -m unittest discover -s tests        # simulated fixtures only
 
 ## Documentation
 
+Decision numbers (`D-nnn`) in commit messages and this README refer to SRD's private lab log; they are kept for traceability.
+
 The specification, decisions, acceptance criteria and experiment results (EXP-001, the Tier 0 two-run experiment) live in the lab's knowledge vault (CEREBRUM), record `SYS-001 — System health scan`. Evidence cites this repository as `SYS-001@<commit>`.
 
-History: this code lived in the vault at `projects/health-scan/` until M05.5 moved it here with `git subtree split`. Messages and dates are preserved; the author was rewritten to SRD BODY (D-068), and the commits were rewritten, so their hashes differ from the vault's. Evidence written before the move cites vault commits; this mapping links them:
+History: this code lived in the vault at `projects/health-scan/` until M05.5 moved it here with `git subtree split`. Messages and dates are preserved; the author was rewritten to SRD BODY (D-068), and the commits were rewritten, so their hashes differ from the vault's. Before publication all commit dates were rewritten to UTC (same moments, offset `+0000`), which changed the hashes once more; the table shows the current ones. Evidence written before the move cites vault commits; this mapping links them:
 
 | Vault commit | This repository |
 | --- | --- |
-| `7d890e7` | `d5585ae` |
-| `4b0c654` | `d311ed0` |
-| `9f1d6bd` | `f7c2fa3` |
-| `ad9a450` | `9c40909` |
-| `15026a9` | `b2b1edc` |
+| `7d890e7` | `1d2540b` |
+| `4b0c654` | `3d42961` |
+| `9f1d6bd` | `ce36fc0` |
+| `ad9a450` | `a5a70b4` |
+| `15026a9` | `b6b62bb` |
+
+## Licence
+
+Code: MIT License, see `LICENSE`. Copyright (c) 2026 SRD (Systems Research & Development). Documentation in this repository: CC BY 4.0 (D-074).
