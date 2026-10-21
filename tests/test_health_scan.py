@@ -1,7 +1,7 @@
 """Unit tests for the Tier 0 system health scan collector and diff (M04 task 4).
 
 Run from repo root:
-  python -I -m unittest discover -s projects/health-scan/tests
+  python -I -m unittest discover -s tests
 
 Uses SIMULATED fixtures only; never runs the collector against the real system.
 """
@@ -24,7 +24,7 @@ from typing import Any
 
 TESTS_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = TESTS_DIR.parent
-REPO_ROOT = PROJECT_DIR.parents[1]
+REPO_ROOT = PROJECT_DIR  # the project's own repository (M05.5)
 FIXTURES_DIR = TESTS_DIR / "fixtures"
 
 sys.path.insert(0, str(PROJECT_DIR))
@@ -75,6 +75,11 @@ class HealthScanTests(unittest.TestCase):
         for path in fixture_files:
             data = json.loads(path.read_text(encoding="utf-8"))
             self.assertIs(data.get("simulation"), True, f"{path.name} missing simulation: true")
+
+    def test_repo_root_is_this_repository(self):
+        """M05.5: the output boundary (AC3) is this project's own repository, not its parent folder."""
+        self.assertEqual(collect.repo_root(), PROJECT_DIR)
+        self.assertTrue((PROJECT_DIR / "collect.py").is_file())
 
     def test_boundary_command_table_and_no_shell_or_repo_writes(self):
         fx = load_fixture("boundary")
@@ -131,7 +136,7 @@ class HealthScanTests(unittest.TestCase):
         # Also refuses a symlink outside the repo that points inside the repo
         with tempfile.TemporaryDirectory(prefix="hs-boundary-") as tmp:
             link_path = Path(tmp) / "link-into-repo"
-            link_path.symlink_to(REPO_ROOT / "projects")
+            link_path.symlink_to(REPO_ROOT / "tests")
             with self.assertRaises(ValueError):
                 collect.check_out_dir(link_path / "sub", root=REPO_ROOT)
 
