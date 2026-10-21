@@ -18,7 +18,7 @@ python -I -m unittest discover -s tests        # simulated fixtures only
 
 The specification, decisions, acceptance criteria and experiment results (EXP-001, the Tier 0 two-run experiment) live in the lab's knowledge vault (CEREBRUM), record `SYS-001 — System health scan`. Evidence cites this repository as `SYS-001@<commit>`.
 
-History: this code lived in the vault at `projects/health-scan/` until M05.5 moved it here with `git subtree split`. Messages, authors and dates are preserved, but the commits were rewritten, so their hashes differ from the vault's. Evidence written before the move cites vault commits; this mapping links them:
+History: this code lived in the vault at `projects/health-scan/` until M05.5 moved it here with `git subtree split`. Messages and dates are preserved; the author was rewritten to SRD BODY (D-068), and the commits were rewritten, so their hashes differ from the vault's. Evidence written before the move cites vault commits; this mapping links them:
 
 | Vault commit | This repository |
 | --- | --- |
