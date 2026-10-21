@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+# Runtime output never enters the repo: ~/.local/state/lab/health-scan/
+out/

@@ -164,8 +164,8 @@ class CommandResult:
 
 
 def repo_root() -> Path:
-    """Return the repository root containing `projects/health-scan/`."""
-    return Path(__file__).resolve().parents[2]
+    """Return the root of this project's repository (SYS-001; was the vault before M05.5)."""
+    return Path(__file__).resolve().parent
 
 
 def check_out_dir(out_dir: str | Path, root: Path | None = None) -> Path:

@@ -23,8 +23,8 @@
   ],
   "repo_relative_out_paths_to_refuse": [
     ".",
-    "projects/health-scan/out",
-    "03-Projects/System health scan/out",
-    ".agent-runs/health-scan"
+    "out",
+    "tests/out",
+    ".git/health-scan"
   ]
 }
